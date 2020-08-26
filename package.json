@@ -1,5 +1,5 @@
 {
-  "name": "sybase",
+  "name": "@zakodium/sybase",
   "version": "1.2.1",
   "description": "A simple node.js wrapper around a java/jconnect app that provides easy access to Sybase Databases without having to install odbc or freetds.",
   "dependencies": {
@@ -15,12 +15,12 @@
     "url": "git://github.com/rodhoward/node-sybase.git"
   },
   "license": "MIT",
-  "keywords" : [
-  	"database",
-  	"sybase",
-  	"jconnect",
-  	"sql",
-  	"java"
+  "keywords": [
+    "database",
+    "sybase",
+    "jconnect",
+    "sql",
+    "java"
   ],
   "author": "Rod Howard <rod.howard@gmail.com>",
   "bugs": {
