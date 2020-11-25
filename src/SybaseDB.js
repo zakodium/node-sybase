@@ -95,11 +95,7 @@ Sybase.prototype.disconnect = function () {
   this.connected = false;
 };
 
-Sybase.prototype.isConnected = function () {
-  return this.connected;
-};
-
-Sybase.prototype.query = function (sql, callback) {
+Sybase.prototype._query = function (sql, callback) {
   const that = this;
   if (this.connected === false) {
     callback(new Error("database isn't connected."));
@@ -131,6 +127,20 @@ Sybase.prototype.query = function (sql, callback) {
   }
 };
 
+Sybase.prototype.query = async function (queryString) {
+  try {
+    return this._query(queryString);
+  } catch (e) {
+    if (err && err.message.includes('JZ0C0')) {
+      // this code means database was disconnected
+      // We attempt to reconnect
+      this.disconnect();
+      await this.connect();
+      return this._query(queryString);
+    }
+  }
+};
+
 Sybase.prototype.onSQLResponse = function (jsonMsg) {
   var err = null;
   var request = this.currentMessages[jsonMsg.msgId];
@@ -156,11 +166,6 @@ Sybase.prototype.onSQLResponse = function (jsonMsg) {
       sendTimeMS,
       request.sql,
     );
-  if (err && err.message.includes('JZ0C0')) {
-    // this code means database is disconnected
-    // The client will have to reconnect
-    this.disconnect();
-  }
   request.callback(err, result);
 };
 
