@@ -1,11 +1,6 @@
-const util = require('util');
-
 var Sybase = require('./src/SybaseDB.js');
 
 const db = new Sybase('localhost', '5000', 'testdb', 'sa', 'password');
-
-Sybase.prototype.query = util.promisify(Sybase.prototype.query);
-Sybase.prototype.connect = util.promisify(Sybase.prototype.connect);
 
 async function run() {
   while (true) {

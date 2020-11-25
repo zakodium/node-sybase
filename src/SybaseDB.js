@@ -3,6 +3,8 @@ var JSONStream = require('JSONStream');
 var fs = require('fs');
 var path = require('path');
 
+const util = require('util');
+
 function Sybase(
   host,
   port,
@@ -11,7 +13,7 @@ function Sybase(
   password,
   timeout,
   logTiming,
-  pathToJavaBridge
+  pathToJavaBridge,
 ) {
   this.connected = false;
   this.host = host;
@@ -30,7 +32,7 @@ function Sybase(
       '..',
       'JavaSybaseLink',
       'dist',
-      'JavaSybaseLink.jar'
+      'JavaSybaseLink.jar',
     );
   }
 
@@ -152,7 +154,7 @@ Sybase.prototype.onSQLResponse = function (jsonMsg) {
       hrend[1] / 1000000,
       javaDuration,
       sendTimeMS,
-      request.sql
+      request.sql,
     );
   if (err && err.message.includes('JZ0C0')) {
     // this code means database is disconnected
@@ -178,5 +180,8 @@ Sybase.prototype.onSQLError = function (data) {
     cb(error);
   });
 };
+
+Sybase.prototype.query = util.promisify(Sybase.prototype.query);
+Sybase.prototype.connect = util.promisify(Sybase.prototype.connect);
 
 module.exports = Sybase;
