@@ -1,4 +1,4 @@
-var Sybase = require('./src/SybaseDB.js');
+var Sybase = require('../src/SybaseDB.js');
 
 const db = new Sybase('localhost', '5000', 'testdb', 'sa', 'password');
 
