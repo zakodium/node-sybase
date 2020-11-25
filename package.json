@@ -1,6 +1,6 @@
 {
   "name": "@zakodium/sybase",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "A simple node.js wrapper around a java/jconnect app that provides easy access to Sybase Databases without having to install odbc or freetds.",
   "dependencies": {
     "JSONStream": "latest"
