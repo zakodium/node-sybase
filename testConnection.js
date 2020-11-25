@@ -8,38 +8,45 @@ Sybase.prototype.query = util.promisify(Sybase.prototype.query);
 Sybase.prototype.connect = util.promisify(Sybase.prototype.connect);
 
 async function run() {
-  await db.connect();
-  const result = await showTables();
-  console.log(result);
-  db.disconnect();
+  while (true) {
+    try {
+      const result = await query(db, 'select * from testTable', true);
+      console.log(result);
+    } catch (e) {
+      console.log('query failed', e);
+    }
+    await wait(1000);
+  }
 }
 
 run();
 
-async function showTables() {
-  await db.query("SELECT * FROM sysobjects WHERE type = 'U'");
+async function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function createTable() {
-  await db.query('CREATE TABLE testTable (name varchar(255))');
+function showTables() {
+  return db.query("SELECT * FROM sysobjects WHERE type = 'U'");
+}
+
+function createTable() {
+  return db.query('create table testTable (name varchar(255))');
+}
+
+function insertValue() {
+  const value = Math.random().toString(36).slice(2);
+  return db.query(`insert into testTable values('${value}')`);
+}
+
+function listTestTable() {
+  const value = Math.random().toString(36).slice(2);
+  return db.query(`select * from testTable`);
 }
 
 async function query(db, queryString, retry) {
-  console.log('query', retry);
-  try {
-    const result = await db.query(queryString);
-    return result;
-  } catch (e) {
-    if (retry) {
-      // TODO: Should we add a condition here on the error message?
-      // e.message.includes('JZ0C0')
-      db.disconnect();
-      connectionPromise = db.connect();
-      await connectionPromise;
-      const result = await query(db, queryString, false);
-      return result;
-    } else {
-      throw e;
-    }
+  if (!db.isConnected()) {
+    connectionPromise = await db.connect();
   }
+  const result = await db.query(queryString);
+  return result;
 }

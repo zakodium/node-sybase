@@ -9,8 +9,9 @@ function Sybase(
   dbname,
   username,
   password,
+  timeout,
   logTiming,
-  pathToJavaBridge,
+  pathToJavaBridge
 ) {
   this.connected = false;
   this.host = host;
@@ -18,7 +19,9 @@ function Sybase(
   this.dbname = dbname;
   this.username = username;
   this.password = password;
+  this.timeout = timeout;
   this.logTiming = logTiming == true;
+  this.readyTimeout = 3000;
 
   this.pathToJavaBridge = pathToJavaBridge;
   if (this.pathToJavaBridge === undefined) {
@@ -27,18 +30,20 @@ function Sybase(
       '..',
       'JavaSybaseLink',
       'dist',
-      'JavaSybaseLink.jar',
+      'JavaSybaseLink.jar'
     );
   }
 
   this.queryCount = 0;
   this.currentMessages = {}; // look up msgId to message sent and call back details.
-
-  this.jsonParser = JSONStream.parse();
 }
 
 Sybase.prototype.connect = function (callback) {
   var that = this;
+  if (this.connected) {
+    callback(null);
+    return;
+  }
   this.javaDB = spawn('java', [
     '-jar',
     this.pathToJavaBridge,
@@ -49,7 +54,6 @@ Sybase.prototype.connect = function (callback) {
     this.password,
   ]);
 
-  var hrstart = process.hrtime();
   this.javaDB.stdout.once('data', function (data) {
     if ((data + '').trim() != 'connected') {
       callback(new Error('Error connecting ' + data));
@@ -62,7 +66,7 @@ Sybase.prototype.connect = function (callback) {
     // set up normal listeners.
     that.javaDB.stdout
       .setEncoding('utf8')
-      .pipe(that.jsonParser)
+      .pipe(JSONStream.parse())
       .on('data', function (jsonMsg) {
         that.onSQLResponse.call(that, jsonMsg);
       });
@@ -70,19 +74,22 @@ Sybase.prototype.connect = function (callback) {
       that.onSQLError.call(that, err);
     });
 
-    callback(null, data);
+    callback(null);
   });
 
   // handle connection issues.
   this.javaDB.stderr.once('data', function (data) {
-    that.javaDB.stdout.removeAllListeners('data');
-    that.javaDB.kill();
+    that.disconnect();
     callback(new Error(data));
   });
 };
 
 Sybase.prototype.disconnect = function () {
-  this.javaDB.kill();
+  if (this.javaDB) {
+    this.javaDB.stdout.removeAllListeners('data');
+    this.javaDB.kill();
+  }
+  this.javaDB = null;
   this.connected = false;
 };
 
@@ -91,7 +98,8 @@ Sybase.prototype.isConnected = function () {
 };
 
 Sybase.prototype.query = function (sql, callback) {
-  if (this.isConnected === false) {
+  const that = this;
+  if (this.connected === false) {
     callback(new Error("database isn't connected."));
     return;
   }
@@ -106,25 +114,25 @@ Sybase.prototype.query = function (sql, callback) {
   msg.callback = callback;
   msg.hrstart = hrstart;
 
-  console.log(
-    'this: ' +
-      this +
-      ' currentMessages: ' +
-      this.currentMessages +
-      ' this.queryCount: ' +
-      this.queryCount,
-  );
-
   this.currentMessages[msg.msgId] = msg;
 
   this.javaDB.stdin.write(strMsg + '\n');
-  console.log('sql request written: ' + strMsg);
+
+  if (this.timeout) {
+    setTimeout(() => {
+      const request = that.currentMessages[msg.msgId];
+      if (request) {
+        request.callback(new Error('timeout'));
+        delete that.currentMessages[msg.msgId];
+      }
+    }, this.timeout);
+  }
 };
 
 Sybase.prototype.onSQLResponse = function (jsonMsg) {
-  console.log('onSQLResponse', jsonMsg);
   var err = null;
   var request = this.currentMessages[jsonMsg.msgId];
+  if (!request) return;
   delete this.currentMessages[jsonMsg.msgId];
 
   var result = jsonMsg.result;
@@ -144,25 +152,29 @@ Sybase.prototype.onSQLResponse = function (jsonMsg) {
       hrend[1] / 1000000,
       javaDuration,
       sendTimeMS,
-      request.sql,
+      request.sql
     );
+  if (err && err.message.includes('JZ0C0')) {
+    // this code means database is disconnected
+    // The client will have to reconnect
+    this.disconnect();
+  }
   request.callback(err, result);
 };
 
 Sybase.prototype.onSQLError = function (data) {
-  console.log('onSQLError', data);
   var error = new Error(data);
 
-  var callBackFuncitons = [];
+  var callBackFunctions = [];
   for (var k in this.currentMessages) {
     if (this.currentMessages.hasOwnProperty(k)) {
-      callBackFuncitons.push(this.currentMessages[k].callback);
+      callBackFunctions.push(this.currentMessages[k].callback);
     }
   }
 
   // clear the current messages before calling back with the error.
   this.currentMessages = [];
-  callBackFuncitons.forEach(function (cb) {
+  callBackFunctions.forEach(function (cb) {
     cb(error);
   });
 };
