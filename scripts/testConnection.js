@@ -5,7 +5,7 @@ const db = new Sybase('localhost', '5000', 'testdb', 'sa', 'password');
 async function run() {
   while (true) {
     try {
-      const result = await query(db, 'select * from testTable', true);
+      const result = await db.query('select * from testTable', true);
       console.log(result);
     } catch (e) {
       console.log('query failed', e);
@@ -36,12 +36,4 @@ function insertValue() {
 function listTestTable() {
   const value = Math.random().toString(36).slice(2);
   return db.query(`select * from testTable`);
-}
-
-async function query(db, queryString, retry) {
-  if (!db.isConnected()) {
-    connectionPromise = await db.connect();
-  }
-  const result = await db.query(queryString);
-  return result;
 }

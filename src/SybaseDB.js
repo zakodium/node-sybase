@@ -13,7 +13,7 @@ function Sybase(
   password,
   timeout,
   logTiming,
-  pathToJavaBridge,
+  pathToJavaBridge
 ) {
   this.connected = false;
   this.host = host;
@@ -32,7 +32,7 @@ function Sybase(
       '..',
       'JavaSybaseLink',
       'dist',
-      'JavaSybaseLink.jar',
+      'JavaSybaseLink.jar'
     );
   }
 
@@ -95,11 +95,7 @@ Sybase.prototype.disconnect = function () {
   this.connected = false;
 };
 
-Sybase.prototype.isConnected = function () {
-  return this.connected;
-};
-
-Sybase.prototype.query = function (sql, callback) {
+Sybase.prototype._query = function (sql, callback) {
   const that = this;
   if (this.connected === false) {
     callback(new Error("database isn't connected."));
@@ -131,6 +127,27 @@ Sybase.prototype.query = function (sql, callback) {
   }
 };
 
+Sybase.prototype.query = async function (queryString, autoConnect) {
+  if (autoConnect && !this.connected) {
+    await this.connect();
+  }
+  try {
+    const result = await this._query(queryString);
+    return result;
+  } catch (err) {
+    if (err && err.message.includes('JZ0C0')) {
+      // this code means database was disconnected
+      // We attempt to reconnect
+      this.disconnect();
+      await this.connect();
+      const result = await this._query(queryString);
+      return result;
+    } else {
+      throw err;
+    }
+  }
+};
+
 Sybase.prototype.onSQLResponse = function (jsonMsg) {
   var err = null;
   var request = this.currentMessages[jsonMsg.msgId];
@@ -154,13 +171,8 @@ Sybase.prototype.onSQLResponse = function (jsonMsg) {
       hrend[1] / 1000000,
       javaDuration,
       sendTimeMS,
-      request.sql,
+      request.sql
     );
-  if (err && err.message.includes('JZ0C0')) {
-    // this code means database is disconnected
-    // The client will have to reconnect
-    this.disconnect();
-  }
   request.callback(err, result);
 };
 
@@ -181,7 +193,7 @@ Sybase.prototype.onSQLError = function (data) {
   });
 };
 
-Sybase.prototype.query = util.promisify(Sybase.prototype.query);
+Sybase.prototype._query = util.promisify(Sybase.prototype._query);
 Sybase.prototype.connect = util.promisify(Sybase.prototype.connect);
 
 module.exports = Sybase;
